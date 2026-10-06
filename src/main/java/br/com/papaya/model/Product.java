@@ -39,6 +39,18 @@ public class Product {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    public Product(
+            String name,
+            String barcode,
+            ProductSource source,
+            VerificationStatus verificationStatus
+    ) {
+        this.name = name;
+        this.barcode = barcode;
+        this.source = source;
+        this.verificationStatus = verificationStatus;
+    }
+
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
