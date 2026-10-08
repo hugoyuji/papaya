@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 @Service
 public class ProductService {
 
@@ -53,5 +55,12 @@ public class ProductService {
                 product.getCreatedAt(),
                 product.getUpdatedAt()
         );
+    }
+
+    public List<ProductResponse> findAll() {
+        return productRepository.findAll()
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 }
