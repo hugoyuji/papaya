@@ -1,3 +1,4 @@
+
 package br.com.papaya.service;
 
 import br.com.papaya.dto.request.ProductRequest;
@@ -6,7 +7,9 @@ import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ProductService {
@@ -18,7 +21,6 @@ public class ProductService {
     }
 
     public ProductResponse create(ProductRequest request) {
-
         Product product = new Product(
                 request.name(),
                 request.barcode(),
@@ -28,14 +30,28 @@ public class ProductService {
 
         Product savedProduct = productRepository.save(product);
 
+        return toResponse(savedProduct);
+    }
+
+    public ProductResponse findById(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Produto não encontrado."
+                ));
+
+        return toResponse(product);
+    }
+
+    private ProductResponse toResponse(Product product) {
         return new ProductResponse(
-                savedProduct.getId(),
-                savedProduct.getName(),
-                savedProduct.getBarcode(),
-                savedProduct.getSource(),
-                savedProduct.getVerificationStatus(),
-                savedProduct.getCreatedAt(),
-                savedProduct.getUpdatedAt()
+                product.getId(),
+                product.getName(),
+                product.getBarcode(),
+                product.getSource(),
+                product.getVerificationStatus(),
+                product.getCreatedAt(),
+                product.getUpdatedAt()
         );
     }
 }
