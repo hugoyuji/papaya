@@ -63,4 +63,9 @@ public class Product {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    public void update(String name, String barcode) {
+        this.name = name;
+        this.barcode = barcode;
+    }
 }

@@ -36,4 +36,12 @@ public class ProductController {
     public List<ProductResponse> findAll() {
         return productService.findAll();
     }
+
+    @PutMapping("/{id}")
+    public ProductResponse update(
+            @PathVariable Long id,
+            @Valid @RequestBody ProductRequest request
+    ) {
+        return productService.update(id, request);
+    }
 }

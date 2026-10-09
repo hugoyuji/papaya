@@ -63,4 +63,21 @@ public class ProductService {
                 .map(this::toResponse)
                 .toList();
     }
+
+    public ProductResponse update(Long id, ProductRequest request) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Produto não encontrado."
+                ));
+
+        product.update(
+                request.name(),
+                request.barcode()
+        );
+
+        Product updatedProduct = productRepository.save(product);
+
+        return toResponse(updatedProduct);
+    }
 }
