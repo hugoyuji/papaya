@@ -1,4 +1,3 @@
-
 package br.com.papaya.service;
 
 import br.com.papaya.dto.request.ProductRequest;
@@ -45,18 +44,6 @@ public class ProductService {
         return toResponse(product);
     }
 
-    private ProductResponse toResponse(Product product) {
-        return new ProductResponse(
-                product.getId(),
-                product.getName(),
-                product.getBarcode(),
-                product.getSource(),
-                product.getVerificationStatus(),
-                product.getCreatedAt(),
-                product.getUpdatedAt()
-        );
-    }
-
     public List<ProductResponse> findAll() {
         return productRepository.findAll()
                 .stream()
@@ -79,5 +66,27 @@ public class ProductService {
         Product updatedProduct = productRepository.save(product);
 
         return toResponse(updatedProduct);
+    }
+
+    public void delete(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Produto não encontrado."
+                ));
+
+        productRepository.delete(product);
+    }
+
+    private ProductResponse toResponse(Product product) {
+        return new ProductResponse(
+                product.getId(),
+                product.getName(),
+                product.getBarcode(),
+                product.getSource(),
+                product.getVerificationStatus(),
+                product.getCreatedAt(),
+                product.getUpdatedAt()
+        );
     }
 }
