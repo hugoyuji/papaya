@@ -7,11 +7,14 @@ import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 
 @Service
+@Validated
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -20,7 +23,7 @@ public class ProductService {
         this.productRepository = productRepository;
     }
 
-    public ProductResponse create(ProductRequest request) {
+    public ProductResponse create(@Valid ProductRequest request) {
         Product product = new Product(
                 request.name(),
                 request.barcode(),
@@ -45,7 +48,7 @@ public class ProductService {
                 .map(this::toResponse);
     }
 
-    public ProductResponse update(Long id, ProductRequest request) {
+    public ProductResponse update(Long id, @Valid ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 

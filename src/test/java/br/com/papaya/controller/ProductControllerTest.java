@@ -63,6 +63,41 @@ class ProductControllerTest {
     }
 
     @Test
+    void createTrimsNameBeforePassingItToService() throws Exception {
+        when(productService.create(new ProductRequest("Arroz", null))).thenReturn(response(1L, "Arroz", null));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"  Arroz  \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Arroz"));
+
+        verify(productService).create(new ProductRequest("Arroz", null));
+    }
+
+    @Test
+    void createAcceptsNameAtMaximumLength() throws Exception {
+        String name = "A".repeat(200);
+        when(productService.create(new ProductRequest(name, null))).thenReturn(response(1L, name, null));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createRejectsNameLongerThan200Characters() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + "A".repeat(201) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.name").exists());
+
+        verifyNoInteractions(productService);
+    }
+
+    @Test
     void createTreatsMissingBarcodeAsNull() throws Exception {
         when(productService.create(new ProductRequest("Arroz", null))).thenReturn(response(1L, "Arroz", null));
 
@@ -109,6 +144,29 @@ class ProductControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Arroz\",\"barcode\":\"" + barcode + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.barcode").exists());
+
+        verifyNoInteractions(productService);
+    }
+
+    @Test
+    void createAcceptsBarcodeAtMaximumLength() throws Exception {
+        String barcode = "1".repeat(50);
+        when(productService.create(new ProductRequest("Arroz", barcode)))
+                .thenReturn(response(1L, "Arroz", barcode));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\"" + barcode + "\"}"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void createRejectsBarcodeContainingNonDigits() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\"123ABC\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors.barcode").exists());
 
@@ -201,6 +259,17 @@ class ProductControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"barcode\":\"12345\"}"))
                 .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(productService);
+    }
+
+    @Test
+    void updateRejectsBarcodeContainingNonDigits() throws Exception {
+        mockMvc.perform(put(BASE_URL + "/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\"ABC123\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.barcode").exists());
 
         verifyNoInteractions(productService);
     }

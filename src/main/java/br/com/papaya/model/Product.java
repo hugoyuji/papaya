@@ -3,6 +3,10 @@ package br.com.papaya.model;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,17 +23,23 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank
+    @Size(max = 200)
     @Column(nullable = false, length = 200)
     private String name;
 
+    @Size(max = 50)
+    @Pattern(regexp = "[0-9]*")
     @Column(length = 50)
     private String barcode;
 
     @Enumerated(EnumType.STRING)
+    @NotNull
     @Column(nullable = false, length = 50)
     private ProductSource source;
 
     @Enumerated(EnumType.STRING)
+    @NotNull
     @Column(name = "verification_status", nullable = false, length = 30)
     private VerificationStatus verificationStatus;
 
@@ -45,8 +55,8 @@ public class Product {
             ProductSource source,
             VerificationStatus verificationStatus
     ) {
-        this.name = name;
-        this.barcode = barcode;
+        this.name = normalizeName(name);
+        this.barcode = normalizeBarcode(barcode);
         this.source = source;
         this.verificationStatus = verificationStatus;
     }
@@ -65,7 +75,19 @@ public class Product {
     }
 
     public void update(String name, String barcode) {
-        this.name = name;
-        this.barcode = barcode;
+        this.name = normalizeName(name);
+        this.barcode = normalizeBarcode(barcode);
+    }
+
+    private static String normalizeName(String name) {
+        return name == null ? null : name.strip();
+    }
+
+    private static String normalizeBarcode(String barcode) {
+        if (barcode == null) {
+            return null;
+        }
+        String normalized = barcode.strip();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

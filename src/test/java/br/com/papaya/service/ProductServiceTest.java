@@ -7,6 +7,9 @@ import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -17,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +64,29 @@ class ProductServiceTest {
                 && saved.getBarcode().equals("7891234567890")
                 && saved.getSource() == ProductSource.USER
                 && saved.getVerificationStatus() == VerificationStatus.PENDING_REVIEW));
+    }
+
+    @Test
+    void createRejectsInvalidRequestEvenWhenCalledWithoutController() {
+        ProductService validatedService = validatedService();
+        assertThrows(ConstraintViolationException.class,
+                () -> validatedService.create(new ProductRequest("Arroz", "123ABC")));
+        verifyNoInteractions(productRepository);
+    }
+
+    @Test
+    void updateRejectsInvalidRequestEvenWhenCalledWithoutController() {
+        ProductService validatedService = validatedService();
+        assertThrows(ConstraintViolationException.class,
+                () -> validatedService.update(1L, new ProductRequest("Arroz", "123ABC")));
+        verifyNoInteractions(productRepository);
+    }
+
+    private ProductService validatedService() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        ProxyFactory proxyFactory = new ProxyFactory(productService);
+        proxyFactory.addAdvice(new MethodValidationInterceptor(validator));
+        return (ProductService) proxyFactory.getProxy();
     }
 
     @Test
