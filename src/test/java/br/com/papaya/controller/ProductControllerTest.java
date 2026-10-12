@@ -148,6 +148,19 @@ class ProductControllerTest {
     }
 
     @Test
+    void unexpectedExceptionReturnsGenericInternalServerError() throws Exception {
+        when(productService.findById(1L)).thenThrow(new IllegalStateException("detalhe interno"));
+
+        mockMvc.perform(get(BASE_URL + "/1"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.detail")
+                        .value("Ocorreu um erro interno. Tente novamente mais tarde."))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("detalhe interno"))));
+    }
+
+    @Test
     void findAllReturnsRequestedPageOfProducts() throws Exception {
         when(productService.findAll(any())).thenReturn(new PageImpl<>(
                 List.of(response(1L, "Arroz"), response(2L, "Feijão")),
