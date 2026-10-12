@@ -4,6 +4,7 @@ import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
+import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,8 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -73,10 +72,10 @@ class ProductServiceTest {
     void findByIdThrowsNotFoundWhenProductDoesNotExist() {
         when(productRepository.findById(99L)).thenReturn(Optional.empty());
 
-        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+        ProductNotFoundException exception = assertThrows(ProductNotFoundException.class,
                 () -> productService.findById(99L));
 
-        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        assertEquals("Produto com ID 99 não foi encontrado.", exception.getMessage());
     }
 
     @Test
@@ -106,8 +105,7 @@ class ProductServiceTest {
     void updateThrowsNotFoundWhenProductDoesNotExist() {
         when(productRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class,
-                () -> productService.update(99L, new ProductRequest("Feijão", "12345"))).getStatusCode());
+        assertThrows(ProductNotFoundException.class, () -> productService.update(99L, new ProductRequest("Feijão", "12345")));
         verify(productRepository, never()).save(any());
     }
 
@@ -124,8 +122,7 @@ class ProductServiceTest {
     void deleteThrowsNotFoundWhenProductDoesNotExist() {
         when(productRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class,
-                () -> productService.delete(99L)).getStatusCode());
+        assertThrows(ProductNotFoundException.class, () -> productService.delete(99L));
         verify(productRepository, never()).delete(any());
     }
 

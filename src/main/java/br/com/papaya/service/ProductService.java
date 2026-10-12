@@ -4,11 +4,10 @@ import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
+import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -36,10 +35,7 @@ public class ProductService {
 
     public ProductResponse findById(Long id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Produto não encontrado."
-                ));
+                .orElseThrow(() -> new ProductNotFoundException(id));
 
         return toResponse(product);
     }
@@ -53,10 +49,7 @@ public class ProductService {
 
     public ProductResponse update(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Produto não encontrado."
-                ));
+                .orElseThrow(() -> new ProductNotFoundException(id));
 
         product.update(
                 request.name(),
@@ -70,10 +63,7 @@ public class ProductService {
 
     public void delete(Long id) {
         Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Produto não encontrado."
-                ));
+                .orElseThrow(() -> new ProductNotFoundException(id));
 
         productRepository.delete(product);
     }

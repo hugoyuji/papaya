@@ -4,6 +4,7 @@ import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
+import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.service.ProductService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +12,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,8 +51,10 @@ class ProductControllerTest {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"  \",\"barcode\":\"123\"}"))
-                .andExpect(status().isBadRequest());
-
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.errors.name").exists());
         verifyNoInteractions(productService);
     }
 
@@ -68,10 +70,24 @@ class ProductControllerTest {
 
     @Test
     void findByIdReturnsNotFoundForMissingProduct() throws Exception {
-        when(productService.findById(99L)).thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND));
+        when(productService.findById(99L)).thenThrow(new ProductNotFoundException(99L));
 
         mockMvc.perform(get(BASE_URL + "/99"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Not Found"))
+                .andExpect(jsonPath("$.detail").value("Produto com ID 99 não foi encontrado."));
+    }
+
+    @Test
+    void findByIdRejectsNonNumericIdWithProblemDetail() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.detail").value("O parâmetro 'id' possui formato inválido."));
+
+        verifyNoInteractions(productService);
     }
 
     @Test
