@@ -12,4 +12,12 @@ public record ProductRequest(
         @Size(max = 50)
         String barcode
 ) {
+    public ProductRequest {
+        if (barcode != null) {
+            barcode = barcode.strip();
+            if (barcode.isEmpty()) {
+                barcode = null;
+            }
+        }
+    }
 }

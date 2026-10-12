@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -55,6 +56,59 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.title").value("Bad Request"))
                 .andExpect(jsonPath("$.errors.name").exists());
+        verifyNoInteractions(productService);
+    }
+
+    @Test
+    void createTreatsMissingBarcodeAsNull() throws Exception {
+        when(productService.create(new ProductRequest("Arroz", null))).thenReturn(response(1L, "Arroz", null));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.barcode").value(nullValue()));
+
+        verify(productService).create(new ProductRequest("Arroz", null));
+    }
+
+    @Test
+    void createTrimsBarcodeAndTreatsWhitespaceOnlyBarcodeAsNull() throws Exception {
+        when(productService.create(new ProductRequest("Arroz", null))).thenReturn(response(1L, "Arroz", null));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\"   \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.barcode").value(nullValue()));
+
+        verify(productService).create(new ProductRequest("Arroz", null));
+    }
+
+    @Test
+    void createTrimsSpacesAroundBarcode() throws Exception {
+        when(productService.create(new ProductRequest("Arroz", "7891234567890")))
+                .thenReturn(response(1L, "Arroz", "7891234567890"));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\" 7891234567890 \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.barcode").value("7891234567890"));
+
+        verify(productService).create(new ProductRequest("Arroz", "7891234567890"));
+    }
+
+    @Test
+    void createRejectsBarcodeLongerThan50Characters() throws Exception {
+        String barcode = "1".repeat(51);
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\",\"barcode\":\"" + barcode + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.barcode").exists());
+
         verifyNoInteractions(productService);
     }
 
@@ -130,8 +184,12 @@ class ProductControllerTest {
     }
 
     private static ProductResponse response(Long id, String name) {
+        return response(id, name, "7891234567890");
+    }
+
+    private static ProductResponse response(Long id, String name, String barcode) {
         LocalDateTime timestamp = LocalDateTime.of(2026, 1, 1, 12, 0);
-        return new ProductResponse(id, name, "7891234567890", ProductSource.USER,
+        return new ProductResponse(id, name, barcode, ProductSource.USER,
                 VerificationStatus.PENDING_REVIEW, timestamp, timestamp);
     }
 }
