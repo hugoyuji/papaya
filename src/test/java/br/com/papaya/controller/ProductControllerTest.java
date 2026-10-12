@@ -9,6 +9,9 @@ import br.com.papaya.service.ProductService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -145,13 +148,25 @@ class ProductControllerTest {
     }
 
     @Test
-    void findAllReturnsProductList() throws Exception {
-        when(productService.findAll()).thenReturn(List.of(response(1L, "Arroz"), response(2L, "Feijão")));
+    void findAllReturnsRequestedPageOfProducts() throws Exception {
+        when(productService.findAll(any())).thenReturn(new PageImpl<>(
+                List.of(response(1L, "Arroz"), response(2L, "Feijão")),
+                PageRequest.of(0, 2, Sort.by("id").ascending()),
+                3
+        ));
 
-        mockMvc.perform(get(BASE_URL))
+        mockMvc.perform(get(BASE_URL).queryParam("page", "0").queryParam("size", "2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("Arroz"))
-                .andExpect(jsonPath("$[1].name").value("Feijão"));
+                .andExpect(jsonPath("$.content[0].name").value("Arroz"))
+                .andExpect(jsonPath("$.content[1].name").value("Feijão"))
+                .andExpect(jsonPath("$.number").value(0))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2));
+
+        verify(productService).findAll(argThat(pageable -> pageable.getPageNumber() == 0
+                && pageable.getPageSize() == 2
+                && pageable.getSort().getOrderFor("id") != null));
     }
 
     @Test

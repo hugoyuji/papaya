@@ -4,10 +4,12 @@ import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
 import br.com.papaya.service.ProductService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -33,8 +35,10 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> findAll() {
-        return productService.findAll();
+    public Page<ProductResponse> findAll(
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
+    ) {
+        return productService.findAll(pageable);
     }
 
     @PutMapping("/{id}")

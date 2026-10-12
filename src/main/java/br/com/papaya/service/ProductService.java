@@ -7,9 +7,9 @@ import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 public class ProductService {
@@ -40,11 +40,9 @@ public class ProductService {
         return toResponse(product);
     }
 
-    public List<ProductResponse> findAll() {
-        return productRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<ProductResponse> findAll(Pageable pageable) {
+        return productRepository.findAll(pageable)
+                .map(this::toResponse);
     }
 
     public ProductResponse update(Long id, ProductRequest request) {

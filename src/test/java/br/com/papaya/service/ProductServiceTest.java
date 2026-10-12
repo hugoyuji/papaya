@@ -7,6 +7,10 @@ import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,13 +83,16 @@ class ProductServiceTest {
     }
 
     @Test
-    void findAllReturnsMappedProducts() {
-        when(productRepository.findAll()).thenReturn(List.of(product));
+    void findAllReturnsMappedPageOfProducts() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(productRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(product), pageable, 1));
 
-        List<ProductResponse> responses = productService.findAll();
+        Page<ProductResponse> responses = productService.findAll(pageable);
 
-        assertEquals(1, responses.size());
-        assertEquals("Arroz", responses.getFirst().name());
+        assertEquals(1, responses.getTotalElements());
+        assertEquals(1, responses.getContent().size());
+        assertEquals("Arroz", responses.getContent().getFirst().name());
+        verify(productRepository).findAll(pageable);
     }
 
     @Test
