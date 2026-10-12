@@ -16,7 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.nullValue;
@@ -122,7 +122,9 @@ class ProductControllerTest {
         mockMvc.perform(get(BASE_URL + "/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("Arroz"));
+                .andExpect(jsonPath("$.name").value("Arroz"))
+                .andExpect(jsonPath("$.createdAt").value("2026-01-01T15:00:00Z"))
+                .andExpect(jsonPath("$.updatedAt").value("2026-01-01T15:00:00Z"));
     }
 
     @Test
@@ -216,7 +218,7 @@ class ProductControllerTest {
     }
 
     private static ProductResponse response(Long id, String name, String barcode) {
-        LocalDateTime timestamp = LocalDateTime.of(2026, 1, 1, 12, 0);
+        Instant timestamp = Instant.parse("2026-01-01T15:00:00Z");
         return new ProductResponse(id, name, barcode, ProductSource.USER,
                 VerificationStatus.PENDING_REVIEW, timestamp, timestamp);
     }

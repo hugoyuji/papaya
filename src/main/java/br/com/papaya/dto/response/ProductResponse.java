@@ -3,7 +3,7 @@ package br.com.papaya.dto.response;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public record ProductResponse(
         Long id,
@@ -11,7 +11,7 @@ public record ProductResponse(
         String barcode,
         ProductSource source,
         VerificationStatus verificationStatus,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Instant createdAt,
+        Instant updatedAt
 ) {
 }
