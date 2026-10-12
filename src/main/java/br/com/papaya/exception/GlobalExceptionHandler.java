@@ -3,7 +3,9 @@ package br.com.papaya.exception;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.validation.FieldError;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,6 +45,21 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(ConstraintViolationException exception) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Um ou mais campos são inválidos.");
+        Map<String, String> errors = exception.getConstraintViolations()
+                .stream()
+                .collect(Collectors.toMap(
+                        violation -> violation.getPropertyPath().toString(),
+                        violation -> violation.getMessage(),
+                        (first, second) -> first,
+                        TreeMap::new
+                ));
+        problem.setProperty("errors", errors);
+        return problem;
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ProblemDetail handleUnreadableMessage(HttpMessageNotReadableException exception) {
         return problem(HttpStatus.BAD_REQUEST, "O corpo da requisição está ausente ou malformado.");
@@ -58,6 +75,12 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleUnexpectedException(Exception exception) {
         LOGGER.error("Erro inesperado ao processar a requisição.", exception);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Ocorreu um erro interno. Tente novamente mais tarde.");
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataConflict(DataIntegrityViolationException exception) {
+        return problem(HttpStatus.CONFLICT,
+                "A operação não pode ser concluída porque os dados entram em conflito com o estado atual.");
     }
 
     private ProblemDetail problem(HttpStatus status, String detail) {

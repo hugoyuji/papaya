@@ -6,6 +6,7 @@ import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.service.ProductService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -60,6 +61,34 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.title").value("Bad Request"))
                 .andExpect(jsonPath("$.errors.name").exists());
         verifyNoInteractions(productService);
+    }
+
+    @Test
+    void createReturnsBadRequestForMalformedJson() throws Exception {
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("O corpo da requisição está ausente ou malformado."));
+
+        verifyNoInteractions(productService);
+    }
+
+    @Test
+    void createReturnsConflictForDataIntegrityViolationWithoutLeakingDetails() throws Exception {
+        when(productService.create(new ProductRequest("Arroz", null)))
+                .thenThrow(new DataIntegrityViolationException("products_name_not_blank"));
+
+        mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Arroz\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value(
+                        "A operação não pode ser concluída porque os dados entram em conflito com o estado atual."))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("products_name_not_blank"))));
     }
 
     @Test
