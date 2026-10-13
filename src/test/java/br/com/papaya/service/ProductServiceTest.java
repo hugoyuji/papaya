@@ -42,7 +42,7 @@ class ProductServiceTest {
 
     @BeforeEach
     void setUp() {
-        product = new Product("Arroz", "7891234567890", ProductSource.USER, VerificationStatus.PENDING_REVIEW);
+        product = new Product("Arroz", ProductSource.USER, VerificationStatus.PENDING_REVIEW);
     }
 
     @Test
@@ -53,15 +53,13 @@ class ProductServiceTest {
             return saved;
         });
 
-        ProductResponse response = productService.create(new ProductRequest("Arroz", "7891234567890"));
+        ProductResponse response = productService.create(new ProductRequest("Arroz"));
 
         assertEquals(1L, response.id());
         assertEquals("Arroz", response.name());
-        assertEquals("7891234567890", response.barcode());
         assertEquals(ProductSource.USER, response.source());
         assertEquals(VerificationStatus.PENDING_REVIEW, response.verificationStatus());
         verify(productRepository).save(argThat(saved -> saved.getName().equals("Arroz")
-                && saved.getBarcode().equals("7891234567890")
                 && saved.getSource() == ProductSource.USER
                 && saved.getVerificationStatus() == VerificationStatus.PENDING_REVIEW));
     }
@@ -70,7 +68,7 @@ class ProductServiceTest {
     void createRejectsInvalidRequestEvenWhenCalledWithoutController() {
         ProductService validatedService = validatedService();
         assertThrows(ConstraintViolationException.class,
-                () -> validatedService.create(new ProductRequest("Arroz", "123ABC")));
+                () -> validatedService.create(new ProductRequest("  ")));
         verifyNoInteractions(productRepository);
     }
 
@@ -78,7 +76,7 @@ class ProductServiceTest {
     void updateRejectsInvalidRequestEvenWhenCalledWithoutController() {
         ProductService validatedService = validatedService();
         assertThrows(ConstraintViolationException.class,
-                () -> validatedService.update(1L, new ProductRequest("Arroz", "123ABC")));
+                () -> validatedService.update(1L, new ProductRequest("  ")));
         verifyNoInteractions(productRepository);
     }
 
@@ -96,7 +94,6 @@ class ProductServiceTest {
         ProductResponse response = productService.findById(1L);
 
         assertEquals("Arroz", response.name());
-        assertEquals("7891234567890", response.barcode());
         assertEquals(ProductSource.USER, response.source());
     }
 
@@ -124,14 +121,13 @@ class ProductServiceTest {
     }
 
     @Test
-    void updateChangesNameAndBarcode() {
+    void updateChangesName() {
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(productRepository.save(product)).thenReturn(product);
 
-        ProductResponse response = productService.update(1L, new ProductRequest("Feijão", "12345"));
+        ProductResponse response = productService.update(1L, new ProductRequest("Feijão"));
 
         assertEquals("Feijão", response.name());
-        assertEquals("12345", response.barcode());
         assertEquals(ProductSource.USER, response.source());
         verify(productRepository).save(product);
     }
@@ -140,7 +136,7 @@ class ProductServiceTest {
     void updateThrowsNotFoundWhenProductDoesNotExist() {
         when(productRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThrows(ProductNotFoundException.class, () -> productService.update(99L, new ProductRequest("Feijão", "12345")));
+        assertThrows(ProductNotFoundException.class, () -> productService.update(99L, new ProductRequest("Feijão")));
         verify(productRepository, never()).save(any());
     }
 

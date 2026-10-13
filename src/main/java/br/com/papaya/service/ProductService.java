@@ -26,7 +26,6 @@ public class ProductService {
     public ProductResponse create(@Valid ProductRequest request) {
         Product product = new Product(
                 request.name(),
-                request.barcode(),
                 ProductSource.USER,
                 VerificationStatus.PENDING_REVIEW
         );
@@ -52,10 +51,7 @@ public class ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
 
-        product.update(
-                request.name(),
-                request.barcode()
-        );
+        product.update(request.name());
 
         Product updatedProduct = productRepository.save(product);
 
@@ -73,7 +69,6 @@ public class ProductService {
         return new ProductResponse(
                 product.getId(),
                 product.getName(),
-                product.getBarcode(),
                 product.getSource(),
                 product.getVerificationStatus(),
                 product.getCreatedAt(),
