@@ -27,6 +27,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(InvalidSortFieldException.class)
+    public ProblemDetail handleInvalidSortField(InvalidSortFieldException exception) {
+        return problem(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationException(MethodArgumentNotValidException exception) {
         ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Um ou mais campos são inválidos.");
