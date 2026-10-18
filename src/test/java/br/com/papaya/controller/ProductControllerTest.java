@@ -200,6 +200,30 @@ class ProductControllerTest {
     }
 
     @Test
+    void findAllRejectsUnsupportedSortField() throws Exception {
+        mockMvc.perform(get(BASE_URL).queryParam("sort", "unknown,asc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("unknown")));
+
+        verifyNoInteractions(productService);
+    }
+
+    @Test
+    void findAllCapsRequestedPageSizeAtConfiguredMaximum() throws Exception {
+        when(productService.findAll(any())).thenAnswer(invocation -> {
+            org.springframework.data.domain.Pageable pageable = invocation.getArgument(0);
+            return new PageImpl<>(List.of(), pageable, 0);
+        });
+
+        mockMvc.perform(get(BASE_URL).queryParam("size", "500"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100));
+
+        verify(productService).findAll(argThat(pageable -> pageable.getPageSize() == 100));
+    }
+
+    @Test
     void updateReturnsUpdatedProduct() throws Exception {
         when(productService.update(1L, new ProductRequest("Feijão"))).thenReturn(response(1L, "Feijão"));
 
@@ -220,6 +244,18 @@ class ProductControllerTest {
         verifyNoInteractions(productService);
     }
 
+    @Test
+    void updateReturnsNotFoundForMissingProduct() throws Exception {
+        when(productService.update(99L, new ProductRequest("Feijao")))
+                .thenThrow(new ProductNotFoundException(99L));
+
+        mockMvc.perform(put(BASE_URL + "/99")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Feijao\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+    }
+
 
     @Test
     void deleteReturnsNoContent() throws Exception {
@@ -227,6 +263,17 @@ class ProductControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(productService).delete(1L);
+    }
+
+    @Test
+    void deleteReturnsNotFoundForMissingProduct() throws Exception {
+        doThrow(new ProductNotFoundException(99L)).when(productService).delete(99L);
+
+        mockMvc.perform(delete(BASE_URL + "/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404));
+
+        verify(productService).delete(99L);
     }
 
     private static ProductResponse response(Long id, String name) {

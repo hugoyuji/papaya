@@ -11,9 +11,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -24,8 +30,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Import(PapayaPostgresTestConfiguration.class)
 class PapayaPostgresContainerTest {
 
@@ -40,6 +53,12 @@ class PapayaPostgresContainerTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void deveConectarAoPostgresDoContainer() throws SQLException {
@@ -73,6 +92,49 @@ class PapayaPostgresContainerTest {
         assertEquals(VerificationStatus.PENDING_REVIEW, recuperado.verificationStatus());
         assertNotNull(recuperado.createdAt());
         assertNotNull(recuperado.updatedAt());
+    }
+
+    @Test
+    void deveExecutarCicloCrudPelaApiContraPostgres() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/v1/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Integration product\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Integration product"))
+                .andReturn();
+
+        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        long id = created.get("id").asLong();
+
+        mockMvc.perform(get("/api/v1/products/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.source").value("USER"));
+
+        mockMvc.perform(get("/api/v1/products").queryParam("sort", "name,asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == " + id + ")].name")
+                        .value(org.hamcrest.Matchers.hasItem("Integration product")));
+
+        mockMvc.perform(put("/api/v1/products/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Updated integration product\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Updated integration product"));
+
+        mockMvc.perform(delete("/api/v1/products/{id}", id))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/products/{id}", id))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(put("/api/v1/products/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Missing product\"}"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/v1/products/{id}", id))
+                .andExpect(status().isNotFound());
     }
 
     @Test
