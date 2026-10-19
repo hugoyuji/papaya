@@ -18,8 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -56,9 +55,6 @@ class PapayaPostgresContainerTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Test
     void deveConectarAoPostgresDoContainer() throws SQLException {
@@ -103,8 +99,8 @@ class PapayaPostgresContainerTest {
                 .andExpect(jsonPath("$.name").value("Integration product"))
                 .andReturn();
 
-        JsonNode created = objectMapper.readTree(createResult.getResponse().getContentAsString());
-        long id = created.get("id").asLong();
+        Number createdId = JsonPath.read(createResult.getResponse().getContentAsString(), "$.id");
+        long id = createdId.longValue();
 
         mockMvc.perform(get("/api/v1/products/{id}", id))
                 .andExpect(status().isOk())
