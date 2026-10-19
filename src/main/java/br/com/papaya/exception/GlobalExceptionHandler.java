@@ -4,6 +4,8 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.BadCredentialsException;
+import br.com.papaya.service.EmailAlreadyRegisteredException;
 import org.springframework.validation.FieldError;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -86,6 +88,16 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleDataConflict(DataIntegrityViolationException exception) {
         return problem(HttpStatus.CONFLICT,
                 "A operação não pode ser concluída porque os dados entram em conflito com o estado atual.");
+    }
+
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException exception) {
+        return problem(HttpStatus.CONFLICT, "Este e-mail já está cadastrado.");
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ProblemDetail handleBadCredentials(BadCredentialsException exception) {
+        return problem(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.");
     }
 
     private ProblemDetail problem(HttpStatus status, String detail) {

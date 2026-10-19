@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.transaction.annotation.Transactional;
 import com.jayway.jsonpath.JsonPath;
 
@@ -37,6 +38,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -151,6 +154,8 @@ class PapayaPostgresContainerTest {
     @Test
     void deveExecutarCicloCrudPelaApiContraPostgres() throws Exception {
         MvcResult createResult = mockMvc.perform(post("/api/v1/products")
+                        .with(user("api-user").roles("USER"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Integration product\"}"))
                 .andExpect(status().isCreated())
@@ -171,24 +176,80 @@ class PapayaPostgresContainerTest {
                         .value(org.hamcrest.Matchers.hasItem("Integration product")));
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Updated integration product\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated integration product"));
 
-        mockMvc.perform(delete("/api/v1/products/{id}", id))
+        mockMvc.perform(delete("/api/v1/products/{id}", id)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/v1/products/{id}", id))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Missing product\"}"))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(delete("/api/v1/products/{id}", id))
+        mockMvc.perform(delete("/api/v1/products/{id}", id)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deveCadastrarAutenticarConsultarSessaoEEncerrarSessao() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"Hugo.Auth@Example.com","displayName":"Hugo","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").value("hugo.auth@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.contributorTrustStatus").value("UNVERIFIED"))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+        MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"HUGO.AUTH@example.com","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("hugo.auth@example.com"))
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.displayName").value("Hugo"));
+
+        mockMvc.perform(post("/api/v1/auth/logout").session(session).with(csrf()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deveExigirLoginParaCadastrarProdutoEDeixarLeituraPublica() throws Exception {
+        mockMvc.perform(get("/api/v1/products"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/products")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Produto protegido\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
