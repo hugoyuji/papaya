@@ -189,10 +189,10 @@ class ProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].name").value("Arroz"))
                 .andExpect(jsonPath("$.content[1].name").value("Feijão"))
-                .andExpect(jsonPath("$.number").value(0))
-                .andExpect(jsonPath("$.size").value(2))
-                .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.totalPages").value(2));
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.size").value(2))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(2));
 
         verify(productService).findAll(argThat(pageable -> pageable.getPageNumber() == 0
                 && pageable.getPageSize() == 2
@@ -218,7 +218,7 @@ class ProductControllerTest {
 
         mockMvc.perform(get(BASE_URL).queryParam("size", "500"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size").value(100));
+                .andExpect(jsonPath("$.page.size").value(100));
 
         verify(productService).findAll(argThat(pageable -> pageable.getPageSize() == 100));
     }

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PagedModel;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -42,7 +43,7 @@ public class ProductController {
     }
 
     @GetMapping
-    public Page<ProductResponse> findAll(
+    public PagedModel<ProductResponse> findAll(
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC) Pageable pageable
     ) {
         pageable.getSort().forEach(order -> {
@@ -51,7 +52,8 @@ public class ProductController {
             }
         });
 
-        return productService.findAll(pageable);
+        Page<ProductResponse> products = productService.findAll(pageable);
+        return new PagedModel<>(products);
     }
 
     @PutMapping("/{id}")
