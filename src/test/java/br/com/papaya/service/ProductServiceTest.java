@@ -7,6 +7,8 @@ import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.exception.ProductNotFoundException;
 import br.com.papaya.model.Product;
 import br.com.papaya.repository.ProductRepository;
+import br.com.papaya.repository.ProductModerationEventRepository;
+import br.com.papaya.repository.UserRepository;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -34,6 +36,12 @@ class ProductServiceTest {
 
     @Mock
     private ProductRepository productRepository;
+
+    @Mock
+    private ProductModerationEventRepository moderationEventRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private ProductService productService;

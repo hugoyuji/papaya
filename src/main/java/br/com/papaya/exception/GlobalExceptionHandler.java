@@ -5,7 +5,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.access.AccessDeniedException;
 import br.com.papaya.service.EmailAlreadyRegisteredException;
+import br.com.papaya.exception.InvalidModerationStateException;
 import org.springframework.validation.FieldError;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -95,9 +97,19 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Este e-mail já está cadastrado.");
     }
 
+    @ExceptionHandler(InvalidModerationStateException.class)
+    public ProblemDetail handleInvalidModerationState(InvalidModerationStateException exception) {
+        return problem(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ProblemDetail handleBadCredentials(BadCredentialsException exception) {
         return problem(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Você não tem permissão para esta operação.");
     }
 
     private ProblemDetail problem(HttpStatus status, String detail) {

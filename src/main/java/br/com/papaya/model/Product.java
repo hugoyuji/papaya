@@ -37,6 +37,10 @@ public class Product {
     @Column(name = "verification_status", nullable = false, length = 30)
     private VerificationStatus verificationStatus;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -48,9 +52,14 @@ public class Product {
             ProductSource source,
             VerificationStatus verificationStatus
     ) {
+        this(name, source, verificationStatus, null);
+    }
+
+    public Product(String name, ProductSource source, VerificationStatus verificationStatus, User createdBy) {
         this.name = normalizeName(name);
         this.source = source;
         this.verificationStatus = verificationStatus;
+        this.createdBy = createdBy;
     }
 
     @PrePersist
@@ -68,6 +77,18 @@ public class Product {
 
     public void update(String name) {
         this.name = normalizeName(name);
+    }
+
+    public void approve() {
+        this.verificationStatus = VerificationStatus.VERIFIED;
+    }
+
+    public void reject() {
+        this.verificationStatus = VerificationStatus.REJECTED;
+    }
+
+    public void resubmit() {
+        this.verificationStatus = VerificationStatus.PENDING_REVIEW;
     }
 
     private static String normalizeName(String name) {

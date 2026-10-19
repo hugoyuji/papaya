@@ -3,11 +3,14 @@ package br.com.papaya.integration;
 
 import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
+import br.com.papaya.dto.response.ProductModerationEventResponse;
+import br.com.papaya.enums.ModerationAction;
 import br.com.papaya.enums.ContributorTrustStatus;
 import br.com.papaya.enums.ProductSource;
 import br.com.papaya.enums.UserRole;
 import br.com.papaya.enums.VerificationStatus;
 import br.com.papaya.model.User;
+import br.com.papaya.exception.InvalidModerationStateException;
 import br.com.papaya.repository.UserRepository;
 import br.com.papaya.service.ProductService;
 import jakarta.persistence.EntityManager;
@@ -28,6 +31,7 @@ import com.jayway.jsonpath.JsonPath;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 import org.postgresql.util.PSQLException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -76,7 +80,7 @@ class PapayaPostgresContainerTest {
     @Test
     void deveExecutarUltimaMigrationDoFlyway() {
         Integer quantidade = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '6'",
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '8'",
                 Integer.class
         );
 
@@ -153,8 +157,13 @@ class PapayaPostgresContainerTest {
 
     @Test
     void deveExecutarCicloCrudPelaApiContraPostgres() throws Exception {
+        userRepository.save(new User("api-user@example.com", "API User", "encoded-password"));
+        User admin = new User("moderator@example.com", "Moderator", "encoded-password");
+        admin.grantAdministratorRole();
+        userRepository.save(admin);
+
         MvcResult createResult = mockMvc.perform(post("/api/v1/products")
-                        .with(user("api-user").roles("USER"))
+                        .with(user("api-user@example.com").roles("USER"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Integration product\"}"))
@@ -176,7 +185,7 @@ class PapayaPostgresContainerTest {
                         .value(org.hamcrest.Matchers.hasItem("Integration product")));
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
-                        .with(user("admin").roles("ADMIN"))
+                        .with(user("api-user@example.com").roles("USER"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Updated integration product\"}"))
@@ -184,7 +193,7 @@ class PapayaPostgresContainerTest {
                 .andExpect(jsonPath("$.name").value("Updated integration product"));
 
         mockMvc.perform(delete("/api/v1/products/{id}", id)
-                        .with(user("admin").roles("ADMIN"))
+                        .with(user("moderator@example.com").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().isNoContent());
 
@@ -192,14 +201,14 @@ class PapayaPostgresContainerTest {
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
-                        .with(user("admin").roles("ADMIN"))
+                        .with(user("moderator@example.com").roles("ADMIN"))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Missing product\"}"))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(delete("/api/v1/products/{id}", id)
-                        .with(user("admin").roles("ADMIN"))
+                        .with(user("moderator@example.com").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().isNotFound());
     }
@@ -250,6 +259,79 @@ class PapayaPostgresContainerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Produto protegido\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void devePreservarHistoricoDeEnvioReenvioAprovacaoERejeicao() {
+        userRepository.save(new User("contributor@example.com", "Contributor", "encoded-password"));
+        User admin = new User("history-admin@example.com", "History Admin", "encoded-password");
+        admin.grantAdministratorRole();
+        userRepository.save(admin);
+
+        ProductResponse created = productService.create(
+                new ProductRequest("Arroz integral"), "contributor@example.com");
+        productService.reject(created.id(), "history-admin@example.com", "A fonte da informação está ausente.");
+        productService.update(created.id(), new ProductRequest("Arroz integral cateto orgânico"),
+                "history-admin@example.com");
+        productService.approve(created.id(), "history-admin@example.com");
+        assertThrows(InvalidModerationStateException.class,
+                () -> productService.update(created.id(), new ProductRequest("Alteracao direta"),
+                        "history-admin@example.com"));
+
+        List<ProductModerationEventResponse> history = productService.findModerationHistory(created.id());
+
+        assertEquals(List.of(
+                ModerationAction.SUBMITTED,
+                ModerationAction.REJECTED,
+                ModerationAction.RESUBMITTED,
+                ModerationAction.APPROVED
+        ), history.stream().map(ProductModerationEventResponse::action).toList());
+        assertEquals("A fonte da informação está ausente.", history.get(1).reason());
+        assertEquals("Arroz integral", history.get(1).productSnapshot().get("name"));
+        assertEquals("Contributor", history.get(0).actorDisplayName());
+        assertEquals("History Admin", history.get(1).actorDisplayName());
+    }
+
+    @Test
+    void deveRegistrarAprovacaoAutomaticaDeContribuidorVerificado() {
+        User contributor = new User("trusted@example.com", "Trusted Contributor", "encoded-password");
+        contributor.verifyContributor();
+        userRepository.save(contributor);
+
+        ProductResponse created = productService.create(
+                new ProductRequest("Produto confiável"), "trusted@example.com");
+
+        assertEquals(VerificationStatus.VERIFIED, created.verificationStatus());
+        assertEquals(List.of(ModerationAction.SUBMITTED, ModerationAction.AUTO_APPROVED),
+                productService.findModerationHistory(created.id()).stream()
+                        .map(ProductModerationEventResponse::action).toList());
+    }
+
+    @Test
+    void endpointDeModeracaoDeveExigirAdminEAdicionarDecisaoAoHistorico() throws Exception {
+        userRepository.save(new User("proposal-owner@example.com", "Proposal Owner", "encoded-password"));
+        User admin = new User("endpoint-admin@example.com", "Endpoint Admin", "encoded-password");
+        admin.grantAdministratorRole();
+        userRepository.save(admin);
+        ProductResponse created = productService.create(
+                new ProductRequest("Feijão carioca"), "proposal-owner@example.com");
+
+        mockMvc.perform(post("/api/v1/products/{id}/approve", created.id())
+                        .with(user("proposal-owner@example.com").roles("USER"))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/products/{id}/approve", created.id())
+                        .with(user("endpoint-admin@example.com").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"));
+
+        mockMvc.perform(get("/api/v1/products/{id}/moderation-history", created.id()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].action").value("SUBMITTED"))
+                .andExpect(jsonPath("$[1].action").value("APPROVED"))
+                .andExpect(jsonPath("$[1].actorDisplayName").value("Endpoint Admin"));
     }
 
     @Test
