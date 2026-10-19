@@ -3,8 +3,12 @@ package br.com.papaya.integration;
 
 import br.com.papaya.dto.request.ProductRequest;
 import br.com.papaya.dto.response.ProductResponse;
+import br.com.papaya.enums.ContributorTrustStatus;
 import br.com.papaya.enums.ProductSource;
+import br.com.papaya.enums.UserRole;
 import br.com.papaya.enums.VerificationStatus;
+import br.com.papaya.model.User;
+import br.com.papaya.repository.UserRepository;
 import br.com.papaya.service.ProductService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -51,6 +55,9 @@ class PapayaPostgresContainerTest {
     private ProductService productService;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Autowired
@@ -64,13 +71,64 @@ class PapayaPostgresContainerTest {
     }
 
     @Test
-    void deveExecutarMigrationDoFlyway() {
+    void deveExecutarUltimaMigrationDoFlyway() {
         Integer quantidade = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '1'",
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '6'",
                 Integer.class
         );
 
         assertTrue(quantidade != null && quantidade > 0);
+    }
+
+    @Test
+    @Transactional
+    void devePersistirUsuarioComEmailNormalizadoEPermissoesPadrao() {
+        User criado = userRepository.save(new User(
+                "  Ana.Silva@Example.com  ",
+                "  Ana Silva  ",
+                "encoded-password"
+        ));
+        entityManager.flush();
+        Long id = criado.getId();
+        entityManager.clear();
+
+        User recuperado = userRepository.findById(id).orElseThrow();
+
+        assertEquals("ana.silva@example.com", recuperado.getEmail());
+        assertEquals("Ana Silva", recuperado.getDisplayName());
+        assertEquals("encoded-password", recuperado.passwordHash());
+        assertEquals(UserRole.USER, recuperado.getRole());
+        assertEquals(ContributorTrustStatus.UNVERIFIED, recuperado.getContributorTrustStatus());
+        assertNotNull(recuperado.getCreatedAt());
+        assertNotNull(recuperado.getUpdatedAt());
+    }
+
+    @Test
+    void deveRejeitarPapelDeUsuarioInvalidoPelaConstraintDaV6() {
+        DataIntegrityViolationException exception = assertThrows(
+                DataIntegrityViolationException.class,
+                () -> inserirUsuario("invalid-role@example.com", "INVALID_ROLE", "UNVERIFIED")
+        );
+
+        assertConstraintViolation(exception, "users_role_valid");
+    }
+
+    @Test
+    void deveRejeitarEstadoDeConfiancaInvalidoPelaConstraintDaV6() {
+        DataIntegrityViolationException exception = assertThrows(
+                DataIntegrityViolationException.class,
+                () -> inserirUsuario("invalid-trust@example.com", "USER", "PENDING_REVIEW")
+        );
+
+        assertConstraintViolation(exception, "users_contributor_trust_status_valid");
+    }
+
+    private void inserirUsuario(String email, String role, String contributorTrustStatus) {
+        jdbcTemplate.update("""
+                INSERT INTO users (
+                    email, display_name, password_hash, role, contributor_trust_status, created_at, updated_at
+                ) VALUES (?, 'Nome', 'encoded-password', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, email, role, contributorTrustStatus);
     }
 
     @Test
