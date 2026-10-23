@@ -31,6 +31,7 @@ import com.jayway.jsonpath.JsonPath;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.List;
 import org.postgresql.util.PSQLException;
 
@@ -164,6 +165,7 @@ class PapayaPostgresContainerTest {
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/products")
                         .with(user("api-user@example.com").roles("USER"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Integration product\"}"))
@@ -186,6 +188,7 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
                         .with(user("api-user@example.com").roles("USER"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Updated integration product\"}"))
@@ -194,6 +197,7 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(delete("/api/v1/products/{id}", id)
                         .with(user("moderator@example.com").roles("ADMIN"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf()))
                 .andExpect(status().isNoContent());
 
@@ -202,6 +206,7 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(put("/api/v1/products/{id}", id)
                         .with(user("moderator@example.com").roles("ADMIN"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Missing product\"}"))
@@ -209,6 +214,7 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(delete("/api/v1/products/{id}", id)
                         .with(user("moderator@example.com").roles("ADMIN"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf()))
                 .andExpect(status().isNotFound());
     }
@@ -248,6 +254,42 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deveEncerrarSessaoQuandoAtingeDuracaoMaxima() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"session.expiry@example.com","displayName":"Session Expiry","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isCreated());
+
+        MvcResult login = mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"session.expiry@example.com","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+        session.setAttribute("papaya.authenticatedAt", Instant.now().minusSeconds(13 * 60 * 60));
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deveEnviarHstsEmRequisicaoHttps() throws Exception {
+        mockMvc.perform(get("/api/v1/products").secure(true))
+                .andExpect(status().isOk())
+                .andExpect(result -> {
+                    String hsts = result.getResponse().getHeader("Strict-Transport-Security");
+                    assertNotNull(hsts);
+                    assertTrue(hsts.contains("max-age=31536000"));
+                });
     }
 
     @Test
@@ -385,11 +427,13 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(post("/api/v1/products/{id}/approve", created.id())
                         .with(user("proposal-owner@example.com").roles("USER"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf()))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/v1/products/{id}/approve", created.id())
                         .with(user("endpoint-admin@example.com").roles("ADMIN"))
+                        .sessionAttr("papaya.authenticatedAt", Instant.now())
                         .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.verificationStatus").value("VERIFIED"));

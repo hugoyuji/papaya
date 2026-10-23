@@ -3,6 +3,7 @@ package br.com.papaya.controller;
 import br.com.papaya.dto.request.LoginRequest;
 import br.com.papaya.dto.request.RegisterRequest;
 import br.com.papaya.dto.response.UserResponse;
+import br.com.papaya.config.AuthenticatedSessionLifetimeFilter;
 import br.com.papaya.service.UserAuthenticationService;
 import br.com.papaya.service.LoginAttemptProtectionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +21,8 @@ import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -65,6 +68,8 @@ public class AuthenticationController {
         }
         loginAttemptProtectionService.clearAccountFailures(request.email());
         sessionAuthenticationStrategy.onAuthentication(authentication, servletRequest, servletResponse);
+        servletRequest.getSession(true).setAttribute(
+                AuthenticatedSessionLifetimeFilter.AUTHENTICATED_AT_ATTRIBUTE, Instant.now());
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
