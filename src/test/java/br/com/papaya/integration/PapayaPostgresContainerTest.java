@@ -215,6 +215,7 @@ class PapayaPostgresContainerTest {
 
     @Test
     void deveCadastrarAutenticarConsultarSessaoEEncerrarSessao() throws Exception {
+        jdbcTemplate.update("DELETE FROM auth_login_failures");
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -247,6 +248,72 @@ class PapayaPostgresContainerTest {
 
         mockMvc.perform(get("/api/v1/auth/me").session(session))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void deveLimitarFalhasDeLoginPorContaEPermitirNovaTentativaAposExpiracao() throws Exception {
+        jdbcTemplate.update("DELETE FROM auth_login_failures");
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"limit.account@example.com","displayName":"Limit Account","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isCreated());
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"email":"limit.account@example.com","password":"senha-incorreta"}
+                                    """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.detail").value("E-mail ou senha inv\u00e1lidos."));
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"limit.account@example.com","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.detail").value("Muitas tentativas de login. Tente novamente mais tarde."))
+                .andExpect(result -> assertNotNull(result.getResponse().getHeader("Retry-After")));
+
+        jdbcTemplate.update("UPDATE auth_login_failures SET window_started_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'");
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"limit.account@example.com","password":"senha-segura-123"}
+                                """))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void deveLimitarFalhasDeLoginPorEnderecoIp() throws Exception {
+        jdbcTemplate.update("DELETE FROM auth_login_failures");
+
+        for (int attempt = 0; attempt < 20; attempt++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"email":"unknown-%d@example.com","password":"senha-incorreta"}
+                                    """.formatted(attempt)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"another-unknown@example.com","password":"senha-incorreta"}
+                                """))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.detail").value("Muitas tentativas de login. Tente novamente mais tarde."));
     }
 
     @Test

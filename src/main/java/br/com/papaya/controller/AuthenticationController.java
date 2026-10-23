@@ -4,11 +4,13 @@ import br.com.papaya.dto.request.LoginRequest;
 import br.com.papaya.dto.request.RegisterRequest;
 import br.com.papaya.dto.response.UserResponse;
 import br.com.papaya.service.UserAuthenticationService;
+import br.com.papaya.service.LoginAttemptProtectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -27,15 +29,18 @@ public class AuthenticationController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
+    private final LoginAttemptProtectionService loginAttemptProtectionService;
 
     public AuthenticationController(UserAuthenticationService userService,
                                     AuthenticationManager authenticationManager,
                                     SecurityContextRepository securityContextRepository,
-                                    SessionAuthenticationStrategy sessionAuthenticationStrategy) {
+                                    SessionAuthenticationStrategy sessionAuthenticationStrategy,
+                                    LoginAttemptProtectionService loginAttemptProtectionService) {
         this.userService = userService;
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
+        this.loginAttemptProtectionService = loginAttemptProtectionService;
     }
 
     @PostMapping("/register")
@@ -48,8 +53,17 @@ public class AuthenticationController {
     public UserResponse login(@Valid @RequestBody LoginRequest request,
                               HttpServletRequest servletRequest,
                               HttpServletResponse servletResponse) {
-        Authentication authentication = authenticationManager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
+        String ipAddress = servletRequest.getRemoteAddr();
+        loginAttemptProtectionService.checkAllowed(request.email(), ipAddress);
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
+        } catch (BadCredentialsException exception) {
+            loginAttemptProtectionService.recordFailure(request.email(), ipAddress);
+            throw exception;
+        }
+        loginAttemptProtectionService.clearAccountFailures(request.email());
         sessionAuthenticationStrategy.onAuthentication(authentication, servletRequest, servletResponse);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);

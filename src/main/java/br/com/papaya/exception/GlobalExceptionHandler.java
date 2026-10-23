@@ -2,11 +2,14 @@ package br.com.papaya.exception;
 
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.access.AccessDeniedException;
 import br.com.papaya.service.EmailAlreadyRegisteredException;
+import br.com.papaya.service.LoginAttemptLimitException;
 import br.com.papaya.exception.InvalidModerationStateException;
 import org.springframework.validation.FieldError;
 import jakarta.validation.ConstraintViolationException;
@@ -104,7 +107,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BadCredentialsException.class)
     public ProblemDetail handleBadCredentials(BadCredentialsException exception) {
-        return problem(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.");
+        return problem(HttpStatus.UNAUTHORIZED, "E-mail ou senha inv\u00e1lidos.");
+    }
+
+    @ExceptionHandler(LoginAttemptLimitException.class)
+    public ResponseEntity<ProblemDetail> handleLoginAttemptLimit(LoginAttemptLimitException exception) {
+        ProblemDetail problem = problem(HttpStatus.TOO_MANY_REQUESTS,
+                "Muitas tentativas de login. Tente novamente mais tarde.");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+                .body(problem);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
